@@ -3,6 +3,7 @@ from pyimagesearch.shapedetector import ShapeDetector
 import argparse
 import imutils
 import cv2
+import numpy as np
 
 from rectangle import Rectangle
 from rectangle_tree import Node
@@ -17,8 +18,8 @@ def main():
     # load the image and resize it to a smaller factor so that
     # the shapes can be approximated better
     image = cv2.imread(args["image"])
-    resized = imutils.resize(image, width=300)
-    ratio = image.shape[0] / float(resized.shape[0])
+    # findRectangles(image)
+    findParallelLines(image)
 
     # convert the resized image to grayscale, blur it slightly,
     # and threshold it
@@ -31,7 +32,11 @@ def main():
     # cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     # cnts = cnts[0] if imutils.is_cv2() else cnts[1]
 
+
+def findRectangles(image):
     # see https://www.pyimagesearch.com/2014/04/21/building-pokedex-python-finding-game-boy-screen-step-4-6/
+    resized = imutils.resize(image, width=300)
+    ratio = image.shape[0] / float(resized.shape[0])
     gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
     gray = cv2.bilateralFilter(gray, 11, 17, 17)
     edged = cv2.Canny(gray, 30, 200)
@@ -78,6 +83,47 @@ def main():
 
         cv2.imshow("Image", image)
         cv2.waitKey(0)
+
+
+def findParallelLines(image):
+    # see https://www.pyimagesearch.com/2014/04/21/building-pokedex-python-finding-game-boy-screen-step-4-6/
+    resized = imutils.resize(image, width=300)
+    ratio = image.shape[0] / float(resized.shape[0])
+    gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+    gray = cv2.bilateralFilter(gray, 11, 17, 17)
+    edged = cv2.Canny(gray, 30, 200)
+
+    lines = cv2.HoughLines(edged, 1, np.pi / 180, 50)
+    thetas = [180*line[0][1]/np.pi for line in lines]
+    hist, bins = np.histogram(thetas)
+    print 'found %d lines' % len(lines)
+    print 'hist: %s' % hist
+    print 'bins: %s' % bins
+    for line in lines:
+        for rho, theta in line:
+            bin_nr = find_index(180 * theta / np.pi, bins)
+            max_count = max(hist)
+            red = hist[bin_nr] * 255 / max_count
+            a = np.cos(theta)
+            b = np.sin(theta)
+            x0 = a * rho
+            y0 = b * rho
+            x1 = int(x0 + 1000 * (-b))
+            y1 = int(y0 + 1000 * (a))
+            x2 = int(x0 - 1000 * (-b))
+            y2 = int(y0 - 1000 * (a))
+
+            cv2.line(resized, (x1, y1), (x2, y2), (0, 0, red), 2)
+            print 'theta:', 180 * theta / np.pi
+            cv2.imshow("Image", resized)
+            cv2.waitKey(0)
+
+
+def find_index(x, arr):
+    index = 0
+    while arr[index] < x:
+        index += 1
+    return max(0, index - 1)
 
 
 def detect(c):
